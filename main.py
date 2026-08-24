@@ -5,6 +5,7 @@ import os
 import random
 import sys
 import pygame
+import asyncio  # Required for WebAssembly browser multitasking
 
 pygame.init()
 
@@ -161,7 +162,7 @@ class Bird(Obstacle):
         SCREEN.blit(self.image[self.index // 5], self.rect)
         self.index += 1
 
-def main():
+async def main():  # Changed to async for web compatibility
     global game_speed, x_pos_bg, y_pos_bg, points, obstacles
     run = True
     clock = pygame.time.Clock()
@@ -253,19 +254,31 @@ def main():
         for obstacle in obstacles:
             obstacle.draw(SCREEN)
             obstacle.update()
-            if player.dino_rect.colliderect(obstacle.rect):
-                # Save final high score on hit
+            
+            # --- PIXEL-ACCURATE HITBOX ADJUStMENT ---
+            # Shrink bounding rects to prevent ghost transparency box hits
+            dino_hitbox = player.dino_rect.inflate(-20, -14)
+            obstacle_hitbox = obstacle.rect.inflate(-16, -10)
+            
+            if dino_hitbox.colliderect(obstacle_hitbox):
                 with open("score.txt", "r+") as f:
-                    try: val = max([int(x) for x in f.read().split()] + [points])
-                    except: val = points
+                    try:
+                        existing = [int(x) for x in f.read().split()]
+                        val = max(existing + [points]) if existing else points
+                    except:
+                        val = points
                     f.seek(0)
                     f.write(str(val))
                 run = False
 
         score(font_color)
         pygame.display.update()
+        
+        # Give control back to browser engine every single frame loop
+        await asyncio.sleep(0)
 
     pygame.quit()
+    sys.exit()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main()) # Handle asynchronous main function execution
